@@ -121,10 +121,9 @@ def main():
         sys.exit(2)
 
     args = sys.argv[1:]
-    dry_run = False
-    if "--dry-run" in args:
+    if "--dry-run" in args or "--dryrun" in args:
         dry_run = True
-        args = [a for a in args if a != "--dry-run"]
+        args = [a for a in args if a not in ("--dry-run", "--dryrun" )]
 
     for p in args:
         rename_one(p, dry_run=dry_run)
