@@ -4,6 +4,7 @@ Rename screenshots based on their visual content using the OpenAI API. Pass file
 ## What it does
 - Analyzes each image with an OpenAI vision model
 - Generates a short, descriptive, filename-safe title
+- Optionally prepends the YYYYMMDD create date to the filename
 - Renames the file
 - Avoids filename collisions automatically
 
@@ -29,6 +30,11 @@ rename-screenshots.py ~/Downloads/Screenshot\ 2026-01-01\ at\ 10.10.10.png
 Dry run (no changes)
 ```bash
 rename-screenshots.py --dry-run ~/Downloads/Screenshot\ 2026-01-01\ at\ 10.10.10.png
+
+Rename files with "YYYYMMDD - " date prefix
+```bash
+rename-screenshots.py --date ~/Downloads/Screenshot\ 2026-01-01\ at\ 10.10.10.png
+Screenshot 2026-01-01 at 10.10.10.png -> /Users/treed/Desktop/My Projects/rename-screenshots/rename-screenshots/20260215 - flickr-rusted_chain-and-bollard-riverwalk.png
 
 ## Notes
 * Supports PNG, JPG, JPEG, WEBP
