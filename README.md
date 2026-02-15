@@ -2,11 +2,11 @@
 Rename screenshots based on their visual content using the OpenAI API. Pass filenames on the command line to rename based on content.
 
 ## What it does
-- Analyzes each image with an OpenAI vision model
-- Generates a short, descriptive, filename-safe title
-- Optionally prepends the YYYYMMDD create date to the filename
+- Analyzes each image with OpenAI Vision
+- Generates a short description filename
+- Optionally prepends the YYYYMMDD format create date to the filename
 - Renames the file
-- Avoids filename collisions automatically
+- Avoids filename collisions
 
 ## Requirements
 - macOS
@@ -15,7 +15,7 @@ Rename screenshots based on their visual content using the OpenAI API. Pass file
 
 ## Setup
 ```bash
-pip3 install openai pillow
+pip3 install openai 
 export OPENAI_API_KEY="sk-..."
 
 ## Usage
