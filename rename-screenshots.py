@@ -15,7 +15,7 @@ line are processed.
 - Requires your own ChatGPT API key
 
 Usage:
-  ./rename_screenshots.py [--dry-run] <file1> <file2> ...
+  ./rename_screenshots.py [--dry-run] [--date] <file1> <file2> ...
 
 Requirements:
 - Python 3.9+
@@ -31,6 +31,7 @@ import os
 import sys
 import base64
 import time
+from datetime import datetime
 from openai import OpenAI
 
 client = OpenAI()
@@ -71,7 +72,14 @@ def guess_ext(path: str) -> str:
         return ext
     return ".png"
 
-def rename_one(path: str, dry_run: bool = False) -> None:
+def get_creation_date(path: str) -> str:
+    """Get file creation date in YYYY-MM-DD format"""
+    stat = os.stat(path)
+    # Use birth time if available (macOS), otherwise fall back to mtime
+    timestamp = getattr(stat, 'st_birthtime', stat.st_mtime)
+    return datetime.fromtimestamp(timestamp).strftime('%Y%m%d')
+
+def rename_one(path: str, dry_run: bool = False, use_date: bool = False) -> None:
     if not os.path.exists(path):
         print(f"SKIP (not found): {path}", file=sys.stderr)
         return
@@ -106,6 +114,12 @@ def rename_one(path: str, dry_run: bool = False) -> None:
 
     description = resp.choices[0].message.content.strip()
     base = sanitize(description)
+    
+    # Prepend date if requested
+    if use_date:
+        creation_date = get_creation_date(path)
+        base = f"{creation_date} - {base}"
+    
     dirpath = os.path.dirname(os.path.abspath(path))
     new_path = unique_path(dirpath, base, ext)
 
@@ -117,16 +131,23 @@ def rename_one(path: str, dry_run: bool = False) -> None:
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: rename_screenshots.py [--dry-run] <file1> <file2> ...", file=sys.stderr)
+        print("Usage: rename_screenshots.py [--dry-run] [--date] <file1> <file2> ...", file=sys.stderr)
         sys.exit(2)
 
     args = sys.argv[1:]
+    dry_run = False
+    use_date = False
+    
     if "--dry-run" in args or "--dryrun" in args:
         dry_run = True
-        args = [a for a in args if a not in ("--dry-run", "--dryrun" )]
+        args = [a for a in args if a not in ("--dry-run", "--dryrun")]
+    
+    if "--date" in args:
+        use_date = True
+        args = [a for a in args if a != "--date"]
 
     for p in args:
-        rename_one(p, dry_run=dry_run)
+        rename_one(p, dry_run=dry_run, use_date=use_date)
         time.sleep(0.2)  # small pause to reduce rate-limit risk
 
 if __name__ == "__main__":
