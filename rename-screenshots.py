@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-rename-screenshot.py
+rename-screenshots.py
 Rename screenshots based on their visual content using the OpenAI API. 
 Pass filenames on the command line to rename based on content.
 
@@ -15,7 +15,7 @@ line are processed.
 - Requires your own ChatGPT API key
 
 Usage:
-  ./rename_screenshots.py [--dry-run] [--date] <file1> <file2> ...
+  ./rename-screenshots.py [--dry-run] [--date] [--help] <file1> <file2> ...
 
 Requirements:
 - Python 3.9+
@@ -34,7 +34,25 @@ import time
 from datetime import datetime
 from openai import OpenAI
 
-client = OpenAI()
+client = None
+
+HELP = """\
+Usage: rename-screenshots.py [--dry-run] [--date] [--help] <file1> <file2> ...
+
+Rename screenshots based on their visual content using the OpenAI API.
+Each file is renamed in place to a short descriptive name, keeping its
+extension. Duplicate names get -2, -3, etc. appended.
+
+Arguments:
+  <file> ...    One or more image files to rename (PNG, JPG, JPEG, WEBP).
+
+Options:
+  --dry-run     Show the new names without renaming anything. --dryrun works too.
+  --date        Prefix the new name with the file's creation date in YYYYMMDD format.
+  -h, --help    Show this help and exit.
+
+Requires OPENAI_API_KEY in the environment.
+"""
 
 def encode_image(path: str) -> str:
     with open(path, "rb") as f:
@@ -130,11 +148,16 @@ def rename_one(path: str, dry_run: bool = False, use_date: bool = False) -> None
         print(f"{path} -> {new_path}")
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: rename_screenshots.py [--dry-run] [--date] <file1> <file2> ...", file=sys.stderr)
+    global client
+    args = sys.argv[1:]
+    if "-h" in args or "--help" in args:
+        print(HELP, end="")
+        sys.exit(0)
+
+    if not args:
+        print("Usage: rename-screenshots.py [--dry-run] [--date] [--help] <file1> <file2> ...", file=sys.stderr)
         sys.exit(2)
 
-    args = sys.argv[1:]
     dry_run = False
     use_date = False
     
@@ -145,6 +168,8 @@ def main():
     if "--date" in args:
         use_date = True
         args = [a for a in args if a != "--date"]
+
+    client = OpenAI()
 
     for p in args:
         rename_one(p, dry_run=dry_run, use_date=use_date)
