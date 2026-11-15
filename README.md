@@ -1,5 +1,5 @@
 # rename-screenshots
-Rename screenshots based on their visual content using the OpenAI API. Pass filenames on the command line to rename based on content.
+Rename screenshots based on their visual content using OpenAI (version 1) or on-device Apple Intelligence (version 2). Pass filenames on the command line to rename based on content.
 
 ## What it does
 - The original version analyzes images with OpenAI Vision using your own key. 
@@ -11,14 +11,20 @@ Rename screenshots based on their visual content using the OpenAI API. Pass file
 
 ## Requirements
 - macOS
-- Python 3.9+
-- OpenAI API key (version 1) 
-- Apple Intelligence (version 2)
+- Version 1 (OpenAI): Python 3.9+ and an OpenAI API key
+- Version 2 (Apple Intelligence): macOS 26+, Apple Intelligence turned on, Xcode 26+ with its license accepted, and Python 3.10+
 
 ## Setup
+Version 1 (OpenAI)
 ```bash
 pip3 install openai
 export OPENAI_API_KEY="sk-..."
+chmod +x rename-screenshots.py
+```
+
+Version 2 (Apple Intelligence)
+```bash
+pip3 install apple-fm-sdk
 chmod +x rename-screenshots.py
 ```
 

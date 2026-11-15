@@ -1,47 +1,47 @@
 #!/usr/bin/env python3
 """
 rename-screenshots.py
-Rename screenshots based on their visual content using the OpenAI API. 
+Rename screenshots based on their visual content using Apple Intelligence.
 Pass filenames on the command line to rename based on content.
 
-The script accepts one or more image paths as command-line arguments,
-analyzes each image to generate a concise, descriptive filename, and
-renames the file in place. Only files explicitly passed on the command
-line are processed.
+The script accepts one or more filenames on the command line, analyzes each image
+with on-device Apple Intelligence to generate a short filename, and renames the file
+in place. 
 
 - Supports PNG, JPG, JPEG, WEBP
 - Preserves original file extensions
 - Appends -2, -3, etc. to duplicate filenames
-- Requires your own ChatGPT API key
+- Runs entirely on-device
 
 Usage:
   ./rename-screenshots.py [--dry-run] [--date] [--help] <file1> <file2> ...
 
 Requirements:
-- Python 3.9+
-- OPENAI_API_KEY set in the environment
-- openai and pillow Python packages
-
-Note:
-API usage incurs OpenAI costs.
-
+- macOS 26+ with Apple Intelligence turned on
+- Xcode 26+ installed with its license accepted
+- Python 3.10+
+- apple-fm-sdk Python package
 """
 
 import os
 import sys
-import base64
-import time
+import asyncio
 from datetime import datetime
-from openai import OpenAI
+from pathlib import Path
 
-client = None
+import apple_fm_sdk as fm
+
+PROMPT = (
+    "Create a concise 5-6 word description of this image that would be good for a filename. "
+    "Do not use punctuation in description."
+)
 
 HELP = """\
 Usage: rename-screenshots.py [--dry-run] [--date] [--help] <file1> <file2> ...
 
-Rename screenshots based on their visual content using the OpenAI API.
-Each file is renamed in place to a short descriptive name, keeping its
-extension. Duplicate names get -2, -3, etc. appended.
+Rename screenshots based on their visual content using Apple Intelligence.
+Each file is renamed in place to a short descriptive name and original file 
+extension. Duplicate names get -2, -3, etc. appended to the filename.
 
 Arguments:
   <file> ...    One or more image files to rename (PNG, JPG, JPEG, WEBP).
@@ -51,12 +51,8 @@ Options:
   --date        Prefix the new name with the file's creation date in YYYYMMDD format.
   -h, --help    Show this help and exit.
 
-Requires OPENAI_API_KEY in the environment.
+Requires Apple Intelligence turned on and the apple-fm-sdk package.
 """
-
-def encode_image(path: str) -> str:
-    with open(path, "rb") as f:
-        return base64.b64encode(f.read()).decode("utf-8")
 
 def sanitize(text: str, max_len: int = 80) -> str:
     text = text.strip().lower()
@@ -91,13 +87,20 @@ def guess_ext(path: str) -> str:
     return ".png"
 
 def get_creation_date(path: str) -> str:
-    """Get file creation date in YYYY-MM-DD format"""
+    """Get file creation date in YYYYMMDD format"""
     stat = os.stat(path)
     # Use birth time if available (macOS), otherwise fall back to mtime
-    timestamp = getattr(stat, 'st_birthtime', stat.st_mtime)
-    return datetime.fromtimestamp(timestamp).strftime('%Y%m%d')
+    timestamp = getattr(stat, "st_birthtime", stat.st_mtime)
+    return datetime.fromtimestamp(timestamp).strftime("%Y%m%d")
 
-def rename_one(path: str, dry_run: bool = False, use_date: bool = False) -> None:
+async def describe(path: str) -> str:
+    # Fresh session per image so earlier images don't influence later names
+    session = fm.LanguageModelSession()
+    image = fm.ImageAttachment(path=Path(path).resolve())
+    response = await session.respond([PROMPT, image])
+    return str(response).strip()
+
+async def rename_one(path: str, dry_run: bool = False, use_date: bool = False) -> None:
     if not os.path.exists(path):
         print(f"SKIP (not found): {path}", file=sys.stderr)
         return
@@ -107,48 +110,30 @@ def rename_one(path: str, dry_run: bool = False, use_date: bool = False) -> None
 
     ext = guess_ext(path)
 
-    # Use correct mime type for data URL
-    mime = "image/png"
-    if ext == ".jpg" or ext == ".jpeg":
-        mime = "image/jpeg"
-    elif ext == ".webp":
-        mime = "image/webp"
+    try:
+        description = await describe(path)
+    except Exception as e:
+        print(f"SKIP (model error: {e}): {path}", file=sys.stderr)
+        return
 
-    image_b64 = encode_image(path)
-
-    resp = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": "Create a concise 5–8 word filename for this screenshot. Include app/site name if visible. No punctuation."},
-                    {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{image_b64}"}},
-                ],
-            }
-        ],
-        max_tokens=40,
-    )
-
-    description = resp.choices[0].message.content.strip()
     base = sanitize(description)
-    
+
     # Prepend date if requested
     if use_date:
-        creation_date = get_creation_date(path)
-        base = f"{creation_date} - {base}"
-    
+        base = f"{get_creation_date(path)} - {base}"
+
     dirpath = os.path.dirname(os.path.abspath(path))
     new_path = unique_path(dirpath, base, ext)
 
-    if dry_run:
-        print(f"{path} -> {new_path}")
-    else:
+    if not dry_run:
         os.rename(path, new_path)
-        print(f"{path} -> {new_path}")
+    print(f"{path} -> {new_path}")
+
+async def run(paths: list[str], dry_run: bool, use_date: bool) -> None:
+    for p in paths:
+        await rename_one(p, dry_run=dry_run, use_date=use_date)
 
 def main():
-    global client
     args = sys.argv[1:]
     if "-h" in args or "--help" in args:
         print(HELP, end="")
@@ -159,21 +144,21 @@ def main():
         sys.exit(2)
 
     dry_run = False
-    use_date = False
-    
     if "--dry-run" in args or "--dryrun" in args:
         dry_run = True
         args = [a for a in args if a not in ("--dry-run", "--dryrun")]
-    
+
+    use_date = False
     if "--date" in args:
         use_date = True
         args = [a for a in args if a != "--date"]
 
-    client = OpenAI()
+    available, reason = fm.SystemLanguageModel().is_available()
+    if not available:
+        print(f"Apple Intelligence model not available: {reason}", file=sys.stderr)
+        sys.exit(1)
 
-    for p in args:
-        rename_one(p, dry_run=dry_run, use_date=use_date)
-        time.sleep(0.2)  # small pause to reduce rate-limit risk
+    asyncio.run(run(args, dry_run, use_date))
 
 if __name__ == "__main__":
     main()
